@@ -1047,7 +1047,6 @@ function buildStuSent(){
 // SEND FORM (shared between student & group manager)
 // ════════════════════════════════════════════════════
 function buildSendForm(prefix){
-  const needGrp=DB.groupManagers.length>0;
   const ann=DB.settings.announcementMsg;
   return `<div class="panel on">
     ${ann?`<div class="info-box ok">📢 ${ann}</div>`:''}
@@ -1055,6 +1054,7 @@ function buildSendForm(prefix){
     <div class="card glass" style="max-width:580px">
       <div class="form">
         ${DB.managers.length===0?'<div class="info-box warn">⚠️ هنوز هیچ مسئولی در سیستم تعریف نشده. با مدیریت تماس بگیرید.</div>':''}
+        ${DB.groupManagers.length===0?'<div class="info-box warn">⚠️ هنوز هیچ مدیر گروهی در سیستم تعریف نشده. با مدیریت تماس بگیرید.</div>':''}
         <div class="fg"><label class="fl">موضوع</label><input id="${prefix}-subj" class="fi" placeholder="موضوع گزارش" /></div>
         <div class="fi-row">
           <div class="fg"><label class="fl">اولویت</label>
@@ -1072,15 +1072,15 @@ function buildSendForm(prefix){
             </select>
           </div>
         </div>
-        ${needGrp?`<div class="fg"><label class="fl">مدیر گروه (برای تأیید اولیه)</label>
+        <div class="fg"><label class="fl">مدیر گروه <span style="color:var(--err)">*</span></label>
           <select id="${prefix}-grp" class="fi">
-            <option value="">— بدون نیاز به تأیید مدیر گروه —</option>
-            ${DB.groupManagers.map(g=>`<option value="${g.id}">${g.name} — ${g.dept}</option>`).join('')}
+            ${DB.groupManagers.length===0?'<option value="">— مدیر گروهی تعریف نشده —</option>':
+            `<option value="">— انتخاب کنید —</option>${DB.groupManagers.map(g=>`<option value="${g.id}">${g.name} — ${g.dept}</option>`).join('')}`}
           </select>
-          <span class="fhint">اگر مدیر گروه انتخاب کنید، پیام ابتدا برای تأیید ایشان می‌رود.</span>
-        </div>`:''}
+          <span class="fhint">پیام ابتدا برای تأیید مدیر گروه می‌رود، سپس به مسئول ارسال می‌شود.</span>
+        </div>
         <div class="fg"><label class="fl">متن پیام</label><textarea id="${prefix}-body" class="fi" placeholder="مشکل یا گزارش خود را شرح دهید..."></textarea></div>
-        <button class="btn btn-pr" onclick="sendMsg('${prefix}')" ${DB.managers.length===0?'disabled':''}>ارسال گزارش ←</button>
+        <button class="btn btn-pr" onclick="sendMsg('${prefix}')" ${DB.managers.length===0||DB.groupManagers.length===0?'disabled':''}>ارسال گزارش ←</button>
       </div>
     </div>
   </div>`;
@@ -1090,24 +1090,21 @@ function sendMsg(prefix){
   const subj=v(prefix+'-subj').trim();
   const prio=parseInt(v(prefix+'-prio'));
   const mgid=v(prefix+'-mgr');
-  const grpEl=document.getElementById(prefix+'-grp');
-  const grpid=grpEl?grpEl.value:'';
+  const grpid=v(prefix+'-grp');
   const body=v(prefix+'-body').trim();
   if(!subj||!body||!mgid){toast('لطفاً همه فیلدهای اجباری را پر کنید.','err');return;}
+  if(!grpid){toast('انتخاب مدیر گروه اجباری است.','err');return;}
   const mgr=DB.managers.find(m=>m.id===mgid);
-  const grp=grpid?DB.groupManagers.find(g=>g.id===grpid):null;
-  const status=grpid?'pending':'approved';
+  const grp=DB.groupManagers.find(g=>g.id===grpid);
   pushMsg({
     senderId:CU.id,senderName:fullName(CU),
     managerId:mgid,managerName:mgr.name,
-    groupManagerId:grpid||null,groupManagerName:grp?grp.name:null,
-    subject:subj,body,priority:prio,status,isInternal:false
+    groupManagerId:grpid,groupManagerName:grp.name,
+    subject:subj,body,priority:prio,status:'pending',isInternal:false
   });
-  // notify group manager
-  if(grp)addNotif(grpid,'grp',`پیام جدید برای تأیید از ${fullName(CU)}: "${subj}"`);
-  else addNotif(mgid,'mgr',`گزارش جدید از ${fullName(CU)}: "${subj}"`);
+  addNotif(grpid,'grp',`پیام جدید برای تأیید از ${fullName(CU)}: "${subj}"`);
   s(prefix+'-subj','');s(prefix+'-body','');
-  toast(grpid?'گزارش ارسال شد. در انتظار تأیید مدیر گروه... ⏳':'گزارش با موفقیت ارسال شد! ✅',grpid?'warn':'ok');
+  toast('گزارش ارسال شد. در انتظار تأیید مدیر گروه... ⏳','warn');
   showP(prefix==='stu'?'stu-sent':'grp-sent');
 }
 
